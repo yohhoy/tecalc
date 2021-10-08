@@ -23,17 +23,12 @@ expression   := addsub-expr
 addsub-expr  := muldiv-expr {'+'|'-' muldiv-expr}*
 muldiv-expr  := unary-expr {'*'|'/'|'%' unary-expr}*
 unary-expr   := {'+'|'-'}* primary-expr
-primary-expr := '(' expression ')'
-              | integer
-              | variable
+primary-expr := {'(' expression ')'} | integer | variable
 
-integer 
-  := {digit}+
-   | {"0x"|"0X"} {digit | 'a'|...|'f' | 'A'|...|'F'}+
-   | {"0b"|"0B"} {'0'|'1'}+
-variable
-  := alphabet {alphabet | digit}*
-
+integer  := {digit}+  // decimal
+          | {"0x"|"0X"} {digit | 'a'|...|'f' | 'A'|...|'F'}+  // hexadecimal
+          | {"0b"|"0B"} {'0'|'1'}+  // binary
+variable := alphabet {alphabet | digit}*
 digit    := '0'|...|'9'
 alphabet := 'a'|...|'z' | 'A'|...|'Z'
 ```

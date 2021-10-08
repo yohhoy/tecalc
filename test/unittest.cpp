@@ -30,14 +30,18 @@
 
 TEST_CASE("integer literals") {
     tecalc::calculator calc;
+    // decimal literal
     REQUIRE(calc.eval(" 0 ") == 0);
     REQUIRE(calc.eval(" 100 ") == 100);
-    // hexadecimal
+    REQUIRE(calc.eval("00000000000000000042") == 42);
+    // hexadecimal literal
     REQUIRE(calc.eval(" 0x2a ") == 42);
     REQUIRE(calc.eval(" 0X2A ") == 42);
-    // binary
+    REQUIRE(calc.eval("0x00000000000000002A") == 42);
+    // binary literal
     REQUIRE(calc.eval(" 0b1010 ") == 10);
     REQUIRE(calc.eval(" 0B0101 ") == 5);
+    REQUIRE(calc.eval("0b000000000000000010") == 2);
 }
 
 TEST_CASE("unary operator") {
@@ -100,8 +104,10 @@ TEST_CASE("parenthesis") {
 
 TEST_CASE("complex expression") {
     tecalc::calculator calc;
-    REQUIRE(calc.eval(" 7 * 3 + 7 / 3 - 7 % 3 ") == 22);
-    REQUIRE(calc.eval(" ( 4 - 1 ) * ( -2 + 2 * 5 ) ") == 24);
+    REQUIRE(calc.eval("7 * 3 + 7 / 3 - 7 % 3") == 22);
+    REQUIRE(calc.eval("(4 - 1) * (-2 + 2 * 5)") == 24);
+    REQUIRE(calc.eval("--1--1--1--1--1") == 5);
+    REQUIRE(calc.eval("-+1+-1-+1+-1-+1") == -5);
 }
 
 TEST_CASE("variables") {
