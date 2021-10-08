@@ -26,50 +26,70 @@
 #ifndef TECALC_HPP_INCLUDED_
 #define TECALC_HPP_INCLUDED_
 
-#include <optional>
+#include <algorithm>
 #include <charconv>
+#include <optional>
+#include <string_view>
+
 
 namespace tecalc {
 
-namespace impl {
-
-inline bool eat_ws(const char*& s, const char* last)
-{
-    while (s != last && (*s == ' ' || *s == '\t')) {
-        ++s;
-    }
-    return s != last;
-}
-
-} // namespace impl
-
-
 template <class Value>
 class basic_calculator {
+    // input expression [ptr_, last_)
+    const char* ptr_;
+    const char* last_;
+
 public:
     using value_type = Value;
 
-    std::optional<value_type>
-    eval(const char* expr)
+    std::optional<value_type> eval(std::string_view expr)
     {
-        auto last = expr + std::char_traits<char>::length(expr);
-        auto res = eval_addsub(expr, last);
-        if (impl::eat_ws(expr, last)) return {};
+        ptr_ = expr.begin();
+        last_ = expr.end();
+        auto res = eval_addsub();
+        if (eat_ws()) return {};
         return res;
     }
 
 private:
-    // integer = ['+'|'-']? ['0'..'9']+
-    std::optional<value_type> parse_int(const char*& expr, const char* last)
+    // consume whitespace characters
+    bool eat_ws()
     {
-        if (expr != last && *expr == '+') {
-            // ignore '+' because std::from_chars doesn't parse it.
-            ++expr;
+        while (ptr_ != last_ && (*ptr_ == ' ' || *ptr_ == '\t')) {
+            ++ptr_;
         }
+        return ptr_ != last_;
+    }
+
+    // consume one character if it exists
+    bool consume_ch(char ch)
+    {
+        if (ptr_ != last_ && *ptr_ == ch) {
+            ++ptr_;
+            return true;
+        }
+        return false;
+    }
+
+    // consume one character if it exists, and return it
+    char consume_any(std::initializer_list<char> chs)
+    {
+        if (ptr_ != last_ && std::find(chs.begin(), chs.end(), *ptr_) != chs.end()) {
+            return *ptr_++;
+        }
+        return {};
+    }
+
+    // integer = ['+'|'-']? ['0'..'9']+
+    std::optional<value_type> parse_int()
+    {
+        // ignore '+' because std::from_chars doesn't parse it.
+        consume_ch('+');
         value_type val;
-        auto [p, ec] = std::from_chars(expr, last, val);
+        auto [p, ec] = std::from_chars(ptr_, last_, val);
         if (ec == std::errc{}) {
-            expr = p;
+            ptr_ = p;
             return val;
         }
         return {};
@@ -77,34 +97,29 @@ private:
 
     // pexpr := '(' addsub ')'
     // pexpr := integer
-    std::optional<value_type> eval_pexpr(const char*& expr, const char* last)
+    std::optional<value_type> eval_pexpr()
     {
-        if (!impl::eat_ws(expr, last)) return {};
-        if (*expr == '(') {
-            ++expr;
-            auto res = eval_addsub(expr, last);
-            if (!impl::eat_ws(expr, last)) return {};
-            if (*expr != ')') return {};
-            ++expr;
+        if (!eat_ws()) return {};
+        if (consume_ch('(')) {
+            auto res = eval_addsub();
+            if (!eat_ws()) return {};
+            if (!consume_ch(')')) return {};
             return res;
         } else {
-            return parse_int(expr, last);
+            return parse_int();
         }
     }
 
     // muldiv := pexpr ['*'|'/'|'%' pexpr]*
-    std::optional<value_type> eval_muldiv(const char*& expr, const char* last)
+    std::optional<value_type> eval_muldiv()
     {
-        auto lhs = eval_pexpr(expr, last);
+        auto lhs = eval_pexpr();
         value_type res = *lhs;
         if (!lhs) return {};
-        while (impl::eat_ws(expr, last)) {
-            char op = *expr;
-            if (op != '*' && op != '/' && op != '%') {
-                return res;
-            }
-            ++expr;
-            auto rhs = eval_pexpr(expr, last);
+        while (eat_ws()) {
+            char op = consume_any({'*', '/', '%'});
+            if (!op) return res;
+            auto rhs = eval_pexpr();
             if (!rhs) return {};
             if (op == '*') {
                 res *= *rhs;
@@ -121,18 +136,15 @@ private:
     }
 
     // addsub := muldiv ['+'|'-' muldiv]*
-    std::optional<value_type> eval_addsub(const char*& expr, const char* last)
+    std::optional<value_type> eval_addsub()
     {
-        auto lhs = eval_muldiv(expr, last);
+        auto lhs = eval_muldiv();
         if (!lhs) return {};
         value_type res = *lhs;
-        while (impl::eat_ws(expr, last)) {
-            char op = *expr;
-            if (op != '+' && op != '-') {
-                return res;
-            }
-            ++expr;
-            auto rhs = eval_muldiv(expr, last);
+        while (eat_ws()) {
+            char op = consume_any({'+', '-'});
+            if (!op) return res;
+            auto rhs = eval_muldiv();
             if (!rhs) return {};
             if (op == '+') {
                 res += *rhs;
