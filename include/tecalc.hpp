@@ -53,7 +53,7 @@ public:
     }
 
 private:
-    // consume whitespace characters
+    // skip consecutive whitespace characters
     bool eat_ws()
     {
         while (ptr_ != last_ && (*ptr_ == ' ' || *ptr_ == '\t')) {
@@ -62,14 +62,25 @@ private:
         return ptr_ != last_;
     }
 
+    // consume string if it exists
+    bool consume_str(const char* s)
+    {
+        const char* p = ptr_;
+        for (; *s; ++s, ++p) {
+            if (p == last_ || *p != *s)
+                return false;
+        }
+        ptr_ = p;
+        return true;
+    }
+
     // consume one character if it exists
     bool consume_ch(char ch)
     {
-        if (ptr_ != last_ && *ptr_ == ch) {
-            ++ptr_;
-            return true;
-        }
-        return false;
+        if (ptr_ == last_ || *ptr_ != ch)
+            return false;
+        ++ptr_;
+        return true;
     }
 
     // consume one character if it exists, and return it
@@ -81,13 +92,19 @@ private:
         return {};
     }
 
-    // integer = ['+'|'-']? ['0'..'9']+
+    // integer := ['0'..'9']+
+    //          | ["0x"|"0X"]? ['0'..'9'|'a'..'f'|'A'..'F']+
+    //          | ["0b"|"0B"]? ['0'|'1']+
     std::optional<value_type> parse_int()
     {
-        // ignore '+' because std::from_chars doesn't parse it.
-        consume_ch('+');
         value_type val;
-        auto [p, ec] = std::from_chars(ptr_, last_, val);
+        int base = 10;
+        if (consume_str("0x") || consume_str("0X")) {
+            base = 16;
+        } else if (consume_str("0b") || consume_str("0B")) {
+            base = 2;
+        }
+        auto [p, ec] = std::from_chars(ptr_, last_, val, base);
         if (ec == std::errc{}) {
             ptr_ = p;
             return val;
@@ -95,9 +112,9 @@ private:
         return {};
     }
 
-    // pexpr := '(' addsub ')'
-    // pexpr := integer
-    std::optional<value_type> eval_pexpr()
+    // primary := '(' addsub ')'
+    //          | integer
+    std::optional<value_type> eval_primary()
     {
         if (!eat_ws()) return {};
         if (consume_ch('(')) {
@@ -110,16 +127,31 @@ private:
         }
     }
 
-    // muldiv := pexpr ['*'|'/'|'%' pexpr]*
+    // unary = ['-'|'+']* primary
+    std::optional<value_type> eval_unary()
+    {
+        if (!eat_ws()) return {};
+        char op = consume_any({'-', '+'});
+        if (!op) return eval_primary();
+        auto res = eval_unary();
+        if (!res) return {};
+        if (op == '-') {
+            return -*res;
+        } else {
+            return +*res;
+        }
+    }
+
+    // muldiv := unary ['*'|'/'|'%' unary]*
     std::optional<value_type> eval_muldiv()
     {
-        auto lhs = eval_pexpr();
+        auto lhs = eval_unary();
         value_type res = *lhs;
         if (!lhs) return {};
         while (eat_ws()) {
             char op = consume_any({'*', '/', '%'});
             if (!op) return res;
-            auto rhs = eval_pexpr();
+            auto rhs = eval_unary();
             if (!rhs) return {};
             if (op == '*') {
                 res *= *rhs;

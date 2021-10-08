@@ -28,15 +28,26 @@
 #include "tecalc.hpp"
 
 
-TEST_CASE("number parsing") {
+TEST_CASE("integer literals") {
     tecalc::calculator calc;
     REQUIRE(calc.eval(" 0 ") == 0);
-    REQUIRE(calc.eval(" 42 ") == 42);
+    REQUIRE(calc.eval(" 100 ") == 100);
+    // hexadecimal
+    REQUIRE(calc.eval(" 0x2a ") == 42);
+    REQUIRE(calc.eval(" 0X2A ") == 42);
+    // binary
+    REQUIRE(calc.eval(" 0b1010 ") == 10);
+    REQUIRE(calc.eval(" 0B0101 ") == 5);
+}
 
-    REQUIRE(calc.eval(" +0 ") == 0);
-    REQUIRE(calc.eval(" -0 ") == 0);
-    REQUIRE(calc.eval(" +100 ") == 100);
-    REQUIRE(calc.eval(" -100 ") == -100);
+TEST_CASE("unary operator") {
+    tecalc::calculator calc;
+    REQUIRE(calc.eval(" + 0 ") == 0);
+    REQUIRE(calc.eval(" - 0 ") == 0);
+    REQUIRE(calc.eval(" + 100 ") == 100);
+    REQUIRE(calc.eval(" - 100 ") == -100);
+    // sequence
+    REQUIRE(calc.eval(" + - - - + 42 ") == -42);
 }
 
 TEST_CASE("add/sub operator") {
@@ -45,45 +56,46 @@ TEST_CASE("add/sub operator") {
     REQUIRE(calc.eval(" 1 - 2 ") == -1);
     REQUIRE(calc.eval(" -1 + +2 ") == 1);
     REQUIRE(calc.eval(" -1 - +2 ") == -3);
-
+    // sequence
     REQUIRE(calc.eval(" 1 + 2 + 3 + 4 ") == 10);
     REQUIRE(calc.eval(" 10 - 5 - 2 ") == 3);
     REQUIRE(calc.eval(" 1 + 2 - 3 ") == 0);
 }
 
-TEST_CASE("mul/div operator") {
+TEST_CASE("mul/div/mod operator") {
     tecalc::calculator calc;
     REQUIRE(calc.eval(" 7 * 3 ") == 21);
     REQUIRE(calc.eval(" 7 / 3 ") == 2);
     REQUIRE(calc.eval(" 7 % 3 ") == 1);
-
+    // divide/modulo with minus
     REQUIRE(calc.eval("  7 / -3 ") == -2);
     REQUIRE(calc.eval(" -7 /  3 ") == -2);
     REQUIRE(calc.eval(" -7 / -3 ") == 2);
     REQUIRE(calc.eval("  7 % -3 ") == 1);
     REQUIRE(calc.eval(" -7 %  3 ") == -1);
     REQUIRE(calc.eval(" -7 % -3 ") == -1);
-
+    // sequence
     REQUIRE(calc.eval(" 2 * 3 * 4 ") == 24);
     REQUIRE(calc.eval(" 24 / 2 / 3 ") == 4);
     REQUIRE(calc.eval(" 55 % 10 % 3 ") == 2);
     REQUIRE(calc.eval(" 8 * 6 / 4 % 10 ") == 2);
-
+    // divide by zero
     REQUIRE(calc.eval(" 1 * 0 ") == 0);
     REQUIRE(calc.eval(" 1 / 0 ") == std::nullopt);
     REQUIRE(calc.eval(" 1 % 0 ") == std::nullopt);
 }
 
-
 TEST_CASE("parenthesis") {
     tecalc::calculator calc;
     REQUIRE(calc.eval(" ( 42 ) ") == 42);
     REQUIRE(calc.eval("((((((((((10))))))))))") == 10);
-
-    REQUIRE(calc.eval("( ") == std::nullopt);
-    REQUIRE(calc.eval("(0") == std::nullopt);
-    REQUIRE(calc.eval(" )") == std::nullopt);
-    REQUIRE(calc.eval("0)") == std::nullopt);
+    // unmatched parenthesis
+    REQUIRE(calc.eval(" (  ") == std::nullopt);
+    REQUIRE(calc.eval(" (0 ") == std::nullopt);
+    REQUIRE(calc.eval("((0)") == std::nullopt);
+    REQUIRE(calc.eval("  ) ") == std::nullopt);
+    REQUIRE(calc.eval(" 0) ") == std::nullopt);
+    REQUIRE(calc.eval("(0))") == std::nullopt);
 }
 
 TEST_CASE("complex expression") {
