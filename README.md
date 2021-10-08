@@ -8,18 +8,35 @@ This is a tiny expression evaluator, intended for embeding in C++ program.
 #include "tecalc.hpp"
 
 tecalc::calculator calc;
-int answer = calc.eval("(1+2)*3-4");
-// answer == 5
-
-calc.set('A', 1);
-calc.set('B', 2);
-calc.set('C', 3);
-answer = calc.eval("(A + B) * C");
-// answer == 9
+calc.set("A", 2);
+calc.set("B", 4);
+int answer = calc.eval("(1 + A) * B - 2");
+// answer == 10
 ```
 
 ## Requirement
 - C++17 or later
+
+## Grammer
+```
+expression   := addsub-expr
+addsub-expr  := muldiv-expr {'+'|'-' muldiv-expr}*
+muldiv-expr  := unary-expr {'*'|'/'|'%' unary-expr}*
+unary-expr   := {'+'|'-'}* primary-expr
+primary-expr := '(' expression ')'
+              | integer
+              | variable
+
+integer 
+  := {digit}+
+   | {"0x"|"0X"} {digit | 'a'|...|'f' | 'A'|...|'F'}+
+   | {"0b"|"0B"} {'0'|'1'}+
+variable
+  := alphabet {alphabet | digit}*
+
+digit    := '0'|...|'9'
+alphabet := 'a'|...|'z' | 'A'|...|'Z'
+```
 
 ## License
 MIT License
