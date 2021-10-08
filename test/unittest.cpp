@@ -100,6 +100,8 @@ TEST_CASE("parenthesis") {
     REQUIRE(calc.eval("  ) ") == std::nullopt);
     REQUIRE(calc.eval(" 0) ") == std::nullopt);
     REQUIRE(calc.eval("(0))") == std::nullopt);
+    // empty parenthesis
+    REQUIRE(calc.eval("()") == std::nullopt);
 }
 
 TEST_CASE("complex expression") {
@@ -108,6 +110,9 @@ TEST_CASE("complex expression") {
     REQUIRE(calc.eval("(4 - 1) * (-2 + 2 * 5)") == 24);
     REQUIRE(calc.eval("--1--1--1--1--1") == 5);
     REQUIRE(calc.eval("-+1+-1-+1+-1-+1") == -5);
+    // no expression
+    REQUIRE(calc.eval("") == std::nullopt);
+    REQUIRE(calc.eval(" ") == std::nullopt);
 }
 
 TEST_CASE("variables") {

@@ -114,7 +114,7 @@ private:
     }
 
     // C++ Standard guarantees that digit character codes ('0'-'9') are contiguous,
-    // whereas alphabet character codes ('a'-'z', 'A'-'Z') are not contiguous.
+    // whereas it does not alphabet character codes ('a'-'z', 'A'-'Z') are.
     // Here, we assume ANSI-compatible character set that codes of alphabet are contiguous.
     static bool isdigit(char x) { return ('0' <= x && x <= '9'); }
     static bool isalpha(char x) { return ('a' <= x && x <= 'z') || ('A' <= x && x <= 'Z'); }
