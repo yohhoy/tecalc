@@ -112,10 +112,13 @@ private:
         }
         return {};
     }
-    
-    bool isdigit(char x) { return ('0' <= x && x <= '9'); }
-    bool isalpha(char x) { return ('a' <= x && x <= 'z') || ('A' <= x && x <= 'Z'); }
-    bool isalpnum(char x) { return isdigit(x) || isalpha(x); }
+
+    // C++ Standard guarantees that digit character codes ('0'-'9') are contiguous,
+    // whereas alphabet character codes ('a'-'z', 'A'-'Z') are not contiguous.
+    // Here, we assume ANSI-compatible character set that codes of alphabet are contiguous.
+    static bool isdigit(char x) { return ('0' <= x && x <= '9'); }
+    static bool isalpha(char x) { return ('a' <= x && x <= 'z') || ('A' <= x && x <= 'Z'); }
+    static bool isalnum(char x) { return isdigit(x) || isalpha(x); }
 
     // integer := [0-9]+
     //          | ["0x"|"0X"] [0-9|a-f|A-F]+
@@ -144,7 +147,7 @@ private:
         std::string name;
         do {
             name.push_back(*ptr_++);
-        } while (ptr_ != last_ && isalpnum(*ptr_));
+        } while (ptr_ != last_ && isalnum(*ptr_));
         auto itr = vartbl_.find(name);
         if (itr == vartbl_.end()) return {};
         return itr->second;
