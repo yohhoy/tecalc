@@ -8,8 +8,14 @@ This is a tiny expression evaluator, intended for embeding in C++ program.
 #include "tecalc.hpp"
 
 tecalc::calculator calc;
-auto result = calc.eval("(1+2)*3-4");
-// result == 5
+int answer = calc.eval("(1+2)*3-4");
+// answer == 5
+
+calc.set('A', 1);
+calc.set('B', 2);
+calc.set('C', 3);
+answer = calc.eval("(A + B) * C");
+// answer == 9
 ```
 
 ## Requirement

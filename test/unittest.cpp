@@ -103,3 +103,17 @@ TEST_CASE("complex expression") {
     REQUIRE(calc.eval(" 7 * 3 + 7 / 3 - 7 % 3 ") == 22);
     REQUIRE(calc.eval(" ( 4 - 1 ) * ( -2 + 2 * 5 ) ") == 24);
 }
+
+TEST_CASE("variables") {
+    tecalc::calculator calc;
+    REQUIRE(calc.set("x", 1) == std::nullopt);
+    REQUIRE(calc.set("y", 2) == std::nullopt);
+    REQUIRE(calc.set("x", 3) == 1);
+    // use vars
+    REQUIRE(calc.eval(" x ") == 3);
+    REQUIRE(calc.eval("(x)") == 3);
+    REQUIRE(calc.eval(" x * y ") == 6);
+    REQUIRE(calc.eval("+x*-y") == -6);
+    calc.set("K1", 10); calc.set("K2", 20); calc.set("K3", 30);
+    REQUIRE(calc.eval("K1 * (K2 + K3)") == 500);
+}

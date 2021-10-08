@@ -28,7 +28,9 @@
 
 #include <algorithm>
 #include <charconv>
+#include <map>
 #include <optional>
+#include <string>
 #include <string_view>
 
 
@@ -36,13 +38,11 @@ namespace tecalc {
 
 template <class Value>
 class basic_calculator {
-    // input expression [ptr_, last_)
-    const char* ptr_;
-    const char* last_;
-
 public:
     using value_type = Value;
+    using vartbl_type = std::map<std::string, value_type>;
 
+    // evaluate expression string
     std::optional<value_type> eval(std::string_view expr)
     {
         ptr_ = expr.begin();
@@ -51,6 +51,27 @@ public:
         if (eat_ws()) return {};
         return res;
     }
+
+    // set value to named variable
+    std::optional<value_type> set(std::string name, value_type val)
+    {
+        auto itr = vartbl_.find(name);
+        if (itr != vartbl_.end()) {
+            // update value of variable and return old value
+            return std::exchange(itr->second, val);
+        } else {
+            // register value as new variable
+            vartbl_.emplace(name, val);
+            return {};
+        }
+    }
+
+private:
+    // input expression [ptr_, last_)
+    const char* ptr_;
+    const char* last_;
+    // variable (name, value) pair table
+    vartbl_type vartbl_;
 
 private:
     // skip consecutive whitespace characters
@@ -91,10 +112,14 @@ private:
         }
         return {};
     }
+    
+    bool isdigit(char x) { return ('0' <= x && x <= '9'); }
+    bool isalpha(char x) { return ('a' <= x && x <= 'z') || ('A' <= x && x <= 'Z'); }
+    bool isalpnum(char x) { return isdigit(x) || isalpha(x); }
 
-    // integer := ['0'..'9']+
-    //          | ["0x"|"0X"]? ['0'..'9'|'a'..'f'|'A'..'F']+
-    //          | ["0b"|"0B"]? ['0'|'1']+
+    // integer := [0-9]+
+    //          | ["0x"|"0X"] [0-9|a-f|A-F]+
+    //          | ["0b"|"0B"] ['0'|'1']+
     std::optional<value_type> parse_int()
     {
         value_type val;
@@ -112,8 +137,22 @@ private:
         return {};
     }
 
+    // variable := [a-z|A-Z][a-z|A-Z|0-9]*
+    std::optional<value_type> eval_var()
+    {
+        if (!isalpha(*ptr_)) return {};
+        std::string name;
+        do {
+            name.push_back(*ptr_++);
+        } while (ptr_ != last_ && isalpnum(*ptr_));
+        auto itr = vartbl_.find(name);
+        if (itr == vartbl_.end()) return {};
+        return itr->second;
+    }
+
     // primary := '(' addsub ')'
     //          | integer
+    //          | variable
     std::optional<value_type> eval_primary()
     {
         if (!eat_ws()) return {};
@@ -122,8 +161,10 @@ private:
             if (!eat_ws()) return {};
             if (!consume_ch(')')) return {};
             return res;
-        } else {
+        } else if (isdigit(*ptr_)) {
             return parse_int();
+        } else {
+            return eval_var();
         }
     }
 
@@ -131,7 +172,7 @@ private:
     std::optional<value_type> eval_unary()
     {
         if (!eat_ws()) return {};
-        char op = consume_any({'-', '+'});
+        char op = consume_any({'+', '-'});
         if (!op) return eval_primary();
         auto res = eval_unary();
         if (!res) return {};
