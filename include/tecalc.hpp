@@ -120,9 +120,9 @@ private:
     static bool isalpha(char x) { return ('a' <= x && x <= 'z') || ('A' <= x && x <= 'Z'); }
     static bool isalnum(char x) { return isdigit(x) || isalpha(x); }
 
-    // integer := [0-9]+
-    //          | ["0x"|"0X"] [0-9|a-f|A-F]+
-    //          | ["0b"|"0B"] ['0'|'1']+
+    // integer := {0-9}+
+    //         | {"0x"|"0X"} {0-9|a-f|A-F}+
+    //         | {"0b"|"0B"} {'0'|'1'}+
     std::optional<value_type> parse_int()
     {
         value_type val;
@@ -140,7 +140,7 @@ private:
         return {};
     }
 
-    // variable := [a-z|A-Z][a-z|A-Z|0-9]*
+    // variable := {a-z|A-Z} {a-z|A-Z|0-9}*
     std::optional<value_type> eval_var()
     {
         if (!isalpha(*ptr_)) return {};
@@ -171,7 +171,7 @@ private:
         }
     }
 
-    // unary = ['-'|'+']* primary
+    // unary := {'-'|'+'}* primary
     std::optional<value_type> eval_unary()
     {
         if (!eat_ws()) return {};
@@ -186,7 +186,7 @@ private:
         }
     }
 
-    // muldiv := unary ['*'|'/'|'%' unary]*
+    // muldiv := unary {'*'|'/'|'%' unary}*
     std::optional<value_type> eval_muldiv()
     {
         auto lhs = eval_unary();
@@ -211,7 +211,7 @@ private:
         return res;
     }
 
-    // addsub := muldiv ['+'|'-' muldiv]*
+    // addsub := muldiv {'+'|'-' muldiv}*
     std::optional<value_type> eval_addsub()
     {
         auto lhs = eval_muldiv();

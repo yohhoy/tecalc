@@ -2,7 +2,7 @@
 [![CMake](https://github.com/yohhoy/tecalc/actions/workflows/cmake.yml/badge.svg)](https://github.com/yohhoy/tecalc/actions/workflows/cmake.yml)
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-This is a tiny expression evaluator, intended for embeding in C++ program.
+This is a tiny numerical expression evaluator, intended for embeding in C++ program.
 
 ```cpp
 #include "tecalc.hpp"
