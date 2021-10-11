@@ -42,6 +42,7 @@ namespace tecalc {
 //
 enum class errc {
     syntax_error = 1,
+    invalid_literal,
     undefined_var,
     divide_by_zero,
 };
@@ -52,6 +53,7 @@ inline const char* errc_to_msg(errc ev) noexcept
 {
     switch (ev) {
     case errc::syntax_error: return "Syntax error";
+    case errc::invalid_literal: return "Invalid literal";
     case errc::undefined_var: return "Undefined variable";
     case errc::divide_by_zero: return "Divide by zero";
     }
@@ -228,11 +230,16 @@ private:
             base = 2;
         }
         auto [p, ec] = std::from_chars(ptr_, last_, val, base);
-        if (ec == std::errc{}) {
-            ptr_ = p;
-            return val;
+        if (ec != std::errc{}) {
+            last_errc_ = errc::invalid_literal;
+            return {};
         }
-        return {};
+        if (p != last_ && isalnum(*p)) {
+            last_errc_ = errc::invalid_literal;
+            return {};
+        }
+        ptr_ = p;
+        return val;
     }
 
     // variable := {a-z|A-Z} {a-z|A-Z|0-9}*

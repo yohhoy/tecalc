@@ -30,6 +30,7 @@
 
 // int-casted tecalc::errc enumerator for std::error_code::value()
 constexpr int syntax_error = static_cast<int>(tecalc::errc::syntax_error);
+constexpr int invalid_literal = static_cast<int>(tecalc::errc::invalid_literal);
 constexpr int undefined_var = static_cast<int>(tecalc::errc::undefined_var);
 constexpr int divide_by_zero = static_cast<int>(tecalc::errc::divide_by_zero);
 
@@ -54,18 +55,27 @@ auto IsErrc(tecalc::errc ev) {
 
 TEST_CASE("integer literals") {
     tecalc::calculator calc;
+    std::error_code ec;
     // decimal literal
     REQUIRE(calc.eval(" 0 ") == 0);
     REQUIRE(calc.eval(" 100 ") == 100);
     REQUIRE(calc.eval("00000000000000000042") == 42);
+    REQUIRE(calc.eval("0a", ec) == std::nullopt); CHECK(ec.value() == invalid_literal);
+    REQUIRE(calc.eval("0A", ec) == std::nullopt); CHECK(ec.value() == invalid_literal);
     // hexadecimal literal
     REQUIRE(calc.eval(" 0x2a ") == 42);
     REQUIRE(calc.eval(" 0X2A ") == 42);
     REQUIRE(calc.eval("0x00000000000000002A") == 42);
+    REQUIRE(calc.eval("0xG", ec) == std::nullopt); CHECK(ec.value() == invalid_literal);
+    REQUIRE(calc.eval("0x8FG", ec) == std::nullopt); CHECK(ec.value() == invalid_literal);
+    REQUIRE(calc.eval("0x+0", ec) == std::nullopt); CHECK(ec.value() == invalid_literal);
     // binary literal
     REQUIRE(calc.eval(" 0b1010 ") == 10);
     REQUIRE(calc.eval(" 0B0101 ") == 5);
     REQUIRE(calc.eval("0b000000000000000010") == 2);
+    REQUIRE(calc.eval("0b2", ec) == std::nullopt); CHECK(ec.value() == invalid_literal);
+    REQUIRE(calc.eval("0b012", ec) == std::nullopt); CHECK(ec.value() == invalid_literal);
+    REQUIRE(calc.eval("0b+0", ec) == std::nullopt); CHECK(ec.value() == invalid_literal);
 }
 
 TEST_CASE("unary operator") {
@@ -168,12 +178,14 @@ TEST_CASE("exception handling") {
     REQUIRE(tecalc_category == tecalc::tecalc_category());
     REQUIRE_THAT(tecalc_category.name(), Equals("tecalc"));
     REQUIRE_THAT(tecalc_category.message(syntax_error), Equals("Syntax error"));
+    REQUIRE_THAT(tecalc_category.message(invalid_literal), Equals("Invalid literal"));
     REQUIRE_THAT(tecalc_category.message(undefined_var), Equals("Undefined variable"));
     REQUIRE_THAT(tecalc_category.message(divide_by_zero), Equals("Divide by zero"));
     // throw tecalc_error
     static_assert(std::is_base_of<std::runtime_error, tecalc::tecalc_error>::value);
     tecalc::calculator calc;
     REQUIRE_THROWS_MATCHES(calc.eval("42+"), tecalc::tecalc_error, IsErrc(tecalc::errc::syntax_error));
+    REQUIRE_THROWS_MATCHES(calc.eval("0b2"), tecalc::tecalc_error, IsErrc(tecalc::errc::invalid_literal));
     REQUIRE_THROWS_MATCHES(calc.eval("und"), tecalc::tecalc_error, IsErrc(tecalc::errc::undefined_var));
     REQUIRE_THROWS_MATCHES(calc.eval("0/0"), tecalc::tecalc_error, IsErrc(tecalc::errc::divide_by_zero));
 }
