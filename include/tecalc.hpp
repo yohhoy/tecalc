@@ -32,24 +32,117 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 
 
 namespace tecalc {
 
+//
+// error code
+//
+enum class errc {
+    syntax_error = 1,
+    undefined_var,
+    divide_by_zero,
+};
+
+namespace impl {
+
+inline const char* errc_to_msg(errc ev) noexcept
+{
+    switch (ev) {
+    case errc::syntax_error: return "Syntax error";
+    case errc::undefined_var: return "Undefined variable";
+    case errc::divide_by_zero: return "Divide by zero";
+    }
+    return "Unkonwn tecalc::errc";
+}
+
+class tecalc_error_category : public std::error_category {
+public:
+    const char* name() const noexcept override
+        { return "tecalc"; }
+    std::string message(int ev) const override
+        { return errc_to_msg(static_cast<errc>(ev)); }
+};
+
+} // namespace impl
+
+//
+// error category
+//
+inline const std::error_category& tecalc_category() noexcept
+{
+    static impl::tecalc_error_category s_category;
+    return s_category;
+}
+
+//
+// error class
+//
+class tecalc_error : public std::runtime_error {
+    std::error_code ec_;
+public:
+    tecalc_error(errc ev)
+        : std::runtime_error{impl::errc_to_msg(ev)}
+        , ec_{static_cast<int>(ev), tecalc::tecalc_category()} {}
+    const std::error_code& code() const noexcept { return ec_; }
+};
+
+} // namespace tecalc
+
+
+namespace std {
+// We define overloads for tecalc::errc in std namespace.
+template <>
+struct is_error_code_enum<tecalc::errc> : public true_type {};
+
+error_code make_error_code(tecalc::errc e) noexcept
+{
+    return error_code(static_cast<int>(e), tecalc::tecalc_category());
+}
+
+} // namespace std
+
+
+namespace tecalc {
+
+//
+// calculator class-templte
+//
 template <class Value>
 class basic_calculator {
 public:
     using value_type = Value;
     using vartbl_type = std::map<std::string, value_type>;
 
-    // evaluate expression string
-    std::optional<value_type> eval(std::string_view expr)
+    // evaluate expression string, return optional<Value> or error_code
+    std::optional<value_type> eval(std::string_view expr, std::error_code& ec)
     {
         ptr_ = expr.begin();
         last_ = expr.end();
+        last_errc_ = errc{};
         auto res = eval_addsub();
-        if (eat_ws()) return {};
+        if (eat_ws()) {
+            // We treat as syntax error when unevaluated redundant subsequent characters remain.
+            res = std::nullopt;
+        }
+        if (!res) {
+            // If last_errc_ is unset and result is nullopt, report as generic syntax error.
+            ec = std::make_error_code(last_errc_ != errc{} ? last_errc_ : errc::syntax_error);
+        }
         return res;
+    }
+
+    // evaluate expression string, return Value or throw tecalc_error
+    value_type eval(std::string_view expr)
+    {
+        std::error_code ec;
+        auto res = eval(expr, ec);
+        if (ec.value()) {
+            throw tecalc_error(static_cast<errc>(ec.value()));
+        }
+        return *res;
     }
 
     // set value to named variable
@@ -72,6 +165,8 @@ private:
     const char* last_;
     // variable (name, value) pair table
     vartbl_type vartbl_;
+    // last error code
+    errc last_errc_;
 
 private:
     // skip consecutive whitespace characters
@@ -149,7 +244,10 @@ private:
             name.push_back(*ptr_++);
         } while (ptr_ != last_ && isalnum(*ptr_));
         auto itr = vartbl_.find(name);
-        if (itr == vartbl_.end()) return {};
+        if (itr == vartbl_.end()) {
+            last_errc_ = errc::undefined_var;
+            return {};
+        }
         return itr->second;
     }
 
@@ -200,7 +298,10 @@ private:
             if (op == '*') {
                 res *= *rhs;
             } else {
-                if (*rhs == 0) return {};
+                if (*rhs == 0) {
+                    last_errc_ = errc::divide_by_zero;
+                    return {};
+                }
                 if (op == '/') {
                     res /= *rhs;
                 } else {
