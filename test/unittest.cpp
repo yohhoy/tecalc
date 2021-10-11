@@ -33,6 +33,24 @@ constexpr int syntax_error = static_cast<int>(tecalc::errc::syntax_error);
 constexpr int undefined_var = static_cast<int>(tecalc::errc::undefined_var);
 constexpr int divide_by_zero = static_cast<int>(tecalc::errc::divide_by_zero);
 
+// custom matcher for tecalc::tecalc_error
+auto IsErrc(tecalc::errc ev) {
+    struct TecalcErrorMatcher : public Catch::MatcherBase<tecalc::tecalc_error> {
+        std::error_code ec_;
+        TecalcErrorMatcher(tecalc::errc ev)
+            : ec_{std::make_error_code(ev)} {}
+        bool match(tecalc::tecalc_error const& e) const override {
+            return e.code() == ec_;
+        }
+        std::string describe() const override {
+            std::ostringstream ss;
+            ss << "is " << ec_.message();
+            return ss.str();
+        }
+    };
+    return TecalcErrorMatcher{ev};
+}
+
 
 TEST_CASE("integer literals") {
     tecalc::calculator calc;
@@ -143,7 +161,7 @@ TEST_CASE("variables") {
     REQUIRE(calc.eval("undefined", ec) == std::nullopt); CHECK(ec.value() == undefined_var);
 }
 
-TEST_CASE("tecalc_error") {
+TEST_CASE("exception handling") {
     using Catch::Matchers::Equals;
     // error category/error code
     const auto& tecalc_category = tecalc::tecalc_category();
@@ -152,13 +170,10 @@ TEST_CASE("tecalc_error") {
     REQUIRE_THAT(tecalc_category.message(syntax_error), Equals("Syntax error"));
     REQUIRE_THAT(tecalc_category.message(undefined_var), Equals("Undefined variable"));
     REQUIRE_THAT(tecalc_category.message(divide_by_zero), Equals("Divide by zero"));
-    // tecalc_error
+    // throw tecalc_error
     static_assert(std::is_base_of<std::runtime_error, tecalc::tecalc_error>::value);
     tecalc::calculator calc;
-    REQUIRE_THROWS_AS  (calc.eval("42+"), tecalc::tecalc_error);
-    REQUIRE_THROWS_WITH(calc.eval("42+"), Equals("Syntax error"));
-    REQUIRE_THROWS_AS  (calc.eval("und"), tecalc::tecalc_error);
-    REQUIRE_THROWS_WITH(calc.eval("und"), Equals("Undefined variable"));
-    REQUIRE_THROWS_AS  (calc.eval("0/0"), tecalc::tecalc_error);
-    REQUIRE_THROWS_WITH(calc.eval("0/0"), Equals("Divide by zero"));
+    REQUIRE_THROWS_MATCHES(calc.eval("42+"), tecalc::tecalc_error, IsErrc(tecalc::errc::syntax_error));
+    REQUIRE_THROWS_MATCHES(calc.eval("und"), tecalc::tecalc_error, IsErrc(tecalc::errc::undefined_var));
+    REQUIRE_THROWS_MATCHES(calc.eval("0/0"), tecalc::tecalc_error, IsErrc(tecalc::errc::divide_by_zero));
 }
