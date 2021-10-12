@@ -121,8 +121,8 @@ public:
     // evaluate expression string, return optional<Value> or error_code
     std::optional<value_type> eval(std::string_view expr, std::error_code& ec)
     {
-        ptr_ = expr.begin();
-        last_ = expr.end();
+        ptr_ = expr.data();
+        last_ = expr.data() + expr.length();
         last_errc_ = errc{};
         auto res = eval_addsub();
         if (eat_ws()) {
@@ -295,8 +295,8 @@ private:
     std::optional<value_type> eval_muldiv()
     {
         auto lhs = eval_unary();
-        value_type res = *lhs;
         if (!lhs) return {};
+        value_type res = *lhs;
         while (eat_ws()) {
             char op = consume_any({'*', '/', '%'});
             if (!op) return res;
