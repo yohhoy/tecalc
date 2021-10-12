@@ -49,7 +49,7 @@ enum class errc {
 
 namespace impl {
 
-inline const char* errc_to_msg(errc ev) noexcept
+inline const char* errc2msg(errc ev) noexcept
 {
     switch (ev) {
     case errc::syntax_error: return "Syntax error";
@@ -57,7 +57,7 @@ inline const char* errc_to_msg(errc ev) noexcept
     case errc::undefined_var: return "Undefined variable";
     case errc::divide_by_zero: return "Divide by zero";
     }
-    return "Unkonwn tecalc::errc";
+    return "Unknown tecalc::errc";
 }
 
 class tecalc_error_category : public std::error_category {
@@ -65,7 +65,7 @@ public:
     const char* name() const noexcept override
         { return "tecalc"; }
     std::string message(int ev) const override
-        { return errc_to_msg(static_cast<errc>(ev)); }
+        { return errc2msg(static_cast<errc>(ev)); }
 };
 
 } // namespace impl
@@ -86,7 +86,7 @@ class tecalc_error : public std::runtime_error {
     std::error_code ec_;
 public:
     tecalc_error(errc ev)
-        : std::runtime_error{impl::errc_to_msg(ev)}
+        : std::runtime_error{impl::errc2msg(ev)}
         , ec_{static_cast<int>(ev), tecalc::tecalc_category()} {}
     const std::error_code& code() const noexcept { return ec_; }
 };
@@ -172,7 +172,7 @@ private:
 
 private:
     // skip consecutive whitespace characters
-    bool eat_ws()
+    bool eat_ws() noexcept
     {
         while (ptr_ != last_ && (*ptr_ == ' ' || *ptr_ == '\t')) {
             ++ptr_;
@@ -181,7 +181,7 @@ private:
     }
 
     // consume string if it exists
-    bool consume_str(const char* s)
+    bool consume_str(const char* s) noexcept
     {
         const char* p = ptr_;
         for (; *s; ++s, ++p) {
@@ -193,7 +193,7 @@ private:
     }
 
     // consume one character if it exists
-    bool consume_ch(char ch)
+    bool consume_ch(char ch) noexcept
     {
         if (ptr_ == last_ || *ptr_ != ch)
             return false;
@@ -213,9 +213,9 @@ private:
     // C++ Standard guarantees that digit character codes ('0'-'9') are contiguous,
     // whereas it does not alphabet character codes ('a'-'z', 'A'-'Z') are.
     // Here, we assume ANSI-compatible character set that codes of alphabet are contiguous.
-    static bool isdigit(char x) { return ('0' <= x && x <= '9'); }
-    static bool isalpha(char x) { return ('a' <= x && x <= 'z') || ('A' <= x && x <= 'Z'); }
-    static bool isalnum(char x) { return isdigit(x) || isalpha(x); }
+    static bool isdigit(char x) noexcept { return ('0' <= x && x <= '9'); }
+    static bool isalpha(char x) noexcept { return ('a' <= x && x <= 'z') || ('A' <= x && x <= 'Z'); }
+    static bool isalnum(char x) noexcept { return isdigit(x) || isalpha(x); }
 
     // integer := {0-9}+
     //         | {"0x"|"0X"} {0-9|a-f|A-F}+
