@@ -86,6 +86,7 @@ TEST_CASE("unary operator") {
     REQUIRE(calc.eval(" - 100 ") == -100);
     // sequence
     REQUIRE(calc.eval(" + - - - + 42 ") == -42);
+    REQUIRE(calc.eval("+-++--+-++42") == 42);
 }
 
 TEST_CASE("add/sub operator") {

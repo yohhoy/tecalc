@@ -279,15 +279,18 @@ private:
     // unary := {'-'|'+'}* primary
     std::optional<value_type> eval_unary()
     {
-        if (!eat_ws()) return {};
-        char op = consume_any({'+', '-'});
-        if (!op) return eval_primary();
-        auto res = eval_unary();
-        if (!res) return {};
-        if (op == '-') {
+        bool neg = false;
+        char op;
+        do {
+            if (!eat_ws()) return {};
+            op = consume_any({'+', '-'});
+            neg ^= (op == '-');
+        } while (op);
+        auto res = eval_primary();
+        if (res && neg) {
             return -*res;
         } else {
-            return +*res;
+            return res;
         }
     }
 
