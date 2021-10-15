@@ -33,6 +33,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <variant>
 
 
 namespace tecalc {
@@ -43,7 +44,8 @@ namespace tecalc {
 enum class errc {
     syntax_error = 1,
     invalid_literal,
-    undefined_var,
+    unknown_identifier,
+    arg_num_mismatch,
     divide_by_zero,
 };
 
@@ -54,7 +56,8 @@ inline const char* errc2msg(errc ev) noexcept
     switch (ev) {
     case errc::syntax_error: return "Syntax error";
     case errc::invalid_literal: return "Invalid literal";
-    case errc::undefined_var: return "Undefined variable";
+    case errc::unknown_identifier: return "Unknown identifier";
+    case errc::arg_num_mismatch: return "Argument number mismatch";
     case errc::divide_by_zero: return "Divide by zero";
     }
     return "Unknown tecalc::errc";
@@ -66,6 +69,70 @@ public:
         { return "tecalc"; }
     std::string message(int ev) const override
         { return errc2msg(static_cast<errc>(ev)); }
+};
+
+//
+// meta functions
+//
+template<class...> struct typelist {};
+
+// repeat<T, N> := typelist<T_n...>
+template<class, class> struct repeat_helper {};
+template<class T, class... Ts>
+struct repeat_helper<T, typelist<Ts...>> { using type = typelist<Ts..., T>; };
+template<class T, int N>
+struct repeat {
+    using type = typename repeat_helper<T, typename repeat<T, N-1>::type>::type;
+};
+template<class T>
+struct repeat<T, 0> { using type = typelist<>; };
+
+// funcptr<T, N> := T(*)(T_1, ...T_n)
+template<class R, class... Ts>
+auto funcptr_helper(typelist<Ts...>) -> R(*)(Ts...);
+template<class T, int N>
+struct funcptr {
+    using args_typelist = typename repeat<T, N>::type;
+    using type = decltype(funcptr_helper<T>(std::declval<args_typelist>()));
+};
+
+// func_variant<T, N> := std::variant<T(*)(), T(*)(T_1), ...T(*)(T_1, ...T_n)>
+template<class, class> struct func_variant_helper {};
+template<class T, class... Ts>
+struct func_variant_helper<T, std::variant<Ts...>> { using type = std::variant<Ts..., T>; };
+template<class T, int N>
+struct func_variant {
+    using type = typename func_variant_helper<
+        typename funcptr<T, N>::type, typename func_variant<T, N-1>::type>::type;
+};
+template<class T>
+struct func_variant<T, 0> { using type = std::variant<typename funcptr<T, 0>::type>; };
+
+// invoker<Value, F, MaxArgNum>::invoke(f, arg) := std::get<M>(f)(arg[0], ...T_m)
+template <class Value, class F, size_t... Is>
+inline Value invoke_f(F f, const std::vector<Value>& args, std::index_sequence<Is...>)
+{
+    return f(args[Is]...);
+}
+template <class Value, class FnType, size_t N>
+struct invoker {
+    static inline Value invoke(FnType& fn, const std::vector<Value>& args)
+    {
+        if (args.size() == N) {
+            return invoke_f(std::get<N>(fn), args, std::make_index_sequence<N>{});
+        }
+        return invoker<Value, FnType, N-1>::invoke(fn, args);
+    }
+};
+template <class Value, class FnType>
+struct invoker<Value, FnType, 0> {
+    static inline Value invoke(FnType& fn, const std::vector<Value>& args)
+    {
+        if (args.size() == 0) {
+            return (std::get<0>(fn))();
+        }
+        return {}; // not reachable
+    }
 };
 
 } // namespace impl
@@ -112,17 +179,23 @@ namespace tecalc {
 //
 // calculator class-templte
 //
-template <class Value>
+template <class Value, int MaxArgNum = 2>
 class basic_calculator {
 public:
     using value_type = Value;
     using vartbl_type = std::map<std::string, value_type, std::less<>>;
+
+    // function support
+    static constexpr int kMaxArgNum = MaxArgNum;
+    using func_type = typename impl::func_variant<value_type, kMaxArgNum>::type;
+    using functbl_type = std::map<std::string, func_type, std::less<>>;
 
     // evaluate expression string, return optional<Value> or error_code
     std::optional<value_type> eval(std::string_view expr, std::error_code& ec)
     {
         ptr_ = expr.data();
         last_ = expr.data() + expr.length();
+        last_id_ = {};
         last_errc_ = errc{};
         auto res = eval_addsub();
         if (eat_ws()) {
@@ -147,18 +220,20 @@ public:
         return *res;
     }
 
-    // set value to named variable
-    std::optional<value_type> set(std::string_view name, value_type val)
+    // bind value to variable name
+    basic_calculator& bind_var(std::string name, value_type val)
     {
-        auto itr = vartbl_.find(name);
-        if (itr != vartbl_.end()) {
-            // update value of variable and return old value
-            return std::exchange(itr->second, val);
-        } else {
-            // register value as new variable
-            vartbl_.emplace(name, val);
-            return {};
-        }
+        functbl_.erase(name);
+        vartbl_[name] = val;
+        return *this;
+    }
+
+    // bind function pointer to function name
+    basic_calculator& bind_fn(std::string name, func_type fn)
+    {
+        vartbl_.erase(name);
+        functbl_[name] = std::move(fn);
+        return *this;
     }
 
 private:
@@ -167,6 +242,10 @@ private:
     const char* last_;
     // variable (name, value) pair table
     vartbl_type vartbl_;
+    // function (name, funcptr) pair table
+    functbl_type functbl_;
+    // last parsed identifier (variable or function)
+    std::string_view last_id_;
     // last error code
     errc last_errc_;
 
@@ -242,8 +321,8 @@ private:
         return val;
     }
 
-    // variable := {a-z|A-Z} {a-z|A-Z|0-9}*
-    const char* parse_var()
+    // identifier := {a-z|A-Z} {a-z|A-Z|0-9}*
+    const char* parse_id()
     {
         if (!isalpha(*ptr_)) return {};
         const char* begin = ptr_;
@@ -254,7 +333,7 @@ private:
 
     // primary := '(' addsub ')'
     //          | integer
-    //          | variable
+    //          | identifier
     std::optional<value_type> eval_primary()
     {
         if (!eat_ws()) return {};
@@ -266,16 +345,65 @@ private:
         } else if (isdigit(*ptr_)) {
             return parse_int();
         } else {
-            auto name = parse_var();
+            auto name = parse_id();
             if (!name) return {};
-            std::string_view varname{name, static_cast<size_t>(ptr_ - name)};
-            auto itr = vartbl_.find(varname);
-            if (itr == vartbl_.end()) {
-                last_errc_ = errc::undefined_var;
+            last_id_ = {name, static_cast<size_t>(ptr_ - name)};
+            // Here we try to resolve identifier as variable name.
+            // If it isn't variable, handle in caller eval_postfix().
+            auto var = vartbl_.find(last_id_);
+            if (var == vartbl_.end()) {
+                last_errc_ = errc::unknown_identifier;
                 return {};
             }
-            return itr->second;
+            last_id_ = {}; // resolved as variable name
+            return var->second;
         }
+    }
+
+    // postfix   := primary {'(' arguments? ')'}?
+    // arguments := addsub {',' addsub}*
+    std::optional<value_type> eval_postfix()
+    {
+        auto res = eval_primary();
+        if (!res && last_errc_ != errc::unknown_identifier) return {};
+        eat_ws();
+        if (consume_ch('(')) {
+            if (last_id_.empty()) {
+                // When non-function name followed by '(', report syntax error.
+                last_errc_ = errc::syntax_error;
+                return {};
+            }
+            // resolve as function name
+            auto func = functbl_.find(last_id_);
+            if (func == functbl_.end()) {
+                last_errc_ = errc::unknown_identifier;
+                return {};
+            }
+            last_id_ = {};
+            // evaluate arguments list
+            std::vector<value_type> args;
+            while (eat_ws()) {
+                char op = consume_any({',', ')'});
+                if (op == ')') break;
+                auto arg = eval_addsub();
+                if (!arg) return {};
+                args.push_back(*arg);
+            }
+            // invoke user-defined function
+            if (func->second.index() != args.size()) {
+                last_errc_ = errc::arg_num_mismatch;
+                return {};
+            }
+            using invoker = impl::invoker<value_type, func_type, kMaxArgNum>;
+            res = invoker::invoke(func->second, args);
+        } else if (!last_id_.empty()) {
+            if (functbl_.find(last_id_) != functbl_.end()) {            
+                // When function name followed by non-'(', report syntax error.
+                last_errc_ = errc::syntax_error;
+                return {};
+            }
+        }
+        return res;
     }
 
     // unary := {'-'|'+'}* primary
@@ -288,7 +416,7 @@ private:
             op = consume_any({'+', '-'});
             neg ^= (op == '-');
         } while (op);
-        auto res = eval_primary();
+        auto res = eval_postfix();
         if (res && neg) {
             return -*res;
         } else {

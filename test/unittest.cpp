@@ -31,7 +31,8 @@
 // int-casted tecalc::errc enumerator for std::error_code::value()
 constexpr int syntax_error = static_cast<int>(tecalc::errc::syntax_error);
 constexpr int invalid_literal = static_cast<int>(tecalc::errc::invalid_literal);
-constexpr int undefined_var = static_cast<int>(tecalc::errc::undefined_var);
+constexpr int unknown_identifier = static_cast<int>(tecalc::errc::unknown_identifier);
+constexpr int arg_num_mismatch = static_cast<int>(tecalc::errc::arg_num_mismatch);
 constexpr int divide_by_zero = static_cast<int>(tecalc::errc::divide_by_zero);
 
 // custom matcher for tecalc::tecalc_error
@@ -51,7 +52,6 @@ auto IsErrc(tecalc::errc ev) {
     };
     return TecalcErrorMatcher{ev};
 }
-
 
 TEST_CASE("integer literals") {
     tecalc::calculator calc;
@@ -159,19 +159,58 @@ TEST_CASE("complex expression") {
 
 TEST_CASE("variables") {
     tecalc::calculator calc;
-    REQUIRE(calc.set("x", 1) == std::nullopt);
-    REQUIRE(calc.set("y", 2) == std::nullopt);
-    REQUIRE(calc.set("x", 3) == 1);
+    calc.bind_var("x", 1).bind_var("y", 2);
+    calc.bind_var("x", 3);
     // use variables
     REQUIRE(calc.eval(" x ") == 3);
     REQUIRE(calc.eval("(x)") == 3);
     REQUIRE(calc.eval(" x * y ") == 6);
     REQUIRE(calc.eval("+x*-y") == -6);
-    calc.set("K1", 10); calc.set("K2", 20); calc.set("K3", 30);
+    calc.bind_var("K1", 10).bind_var("K2", 20).bind_var("K3", 30);
     REQUIRE(calc.eval("K1 * (K2 + K3)") == 500);
     // undefined varriable
     std::error_code ec;
-    REQUIRE(calc.eval("undefined", ec) == std::nullopt); CHECK(ec.value() == undefined_var);
+    REQUIRE(calc.eval("undefined", ec) == std::nullopt); CHECK(ec.value() == unknown_identifier);
+}
+
+TEST_CASE("functions") {
+    tecalc::calculator calc;
+    calc.bind_fn("nop", [](){ return 42; });
+    calc.bind_fn("suc", [](int a){ return a + 1; });
+    calc.bind_fn("add", [](int a, int b){ return a + b; });
+    REQUIRE(calc.eval(" nop ( ) ") == 42);
+    REQUIRE(calc.eval(" suc ( 0 ) ") == 1);
+    REQUIRE(calc.eval(" add ( 1 , 2 ) ") == 3);
+    REQUIRE(calc.eval(" add ( suc ( 2 ) , add ( 3 , 4 ) ) ") == 10);
+    // undefined function
+    std::error_code ec;
+    REQUIRE(calc.eval("und(42)", ec) == std::nullopt); CHECK(ec.value() == unknown_identifier);
+    // argument number mismatch
+    REQUIRE(calc.eval("nop(1  )", ec) == std::nullopt); CHECK(ec.value() == arg_num_mismatch);
+    REQUIRE(calc.eval("nop(1,2)", ec) == std::nullopt); CHECK(ec.value() == arg_num_mismatch);
+    REQUIRE(calc.eval("suc(   )", ec) == std::nullopt); CHECK(ec.value() == arg_num_mismatch);
+    REQUIRE(calc.eval("suc(1,2)", ec) == std::nullopt); CHECK(ec.value() == arg_num_mismatch);
+    REQUIRE(calc.eval("add(   )", ec) == std::nullopt); CHECK(ec.value() == arg_num_mismatch);
+    REQUIRE(calc.eval("add(  1)", ec) == std::nullopt); CHECK(ec.value() == arg_num_mismatch);
+}
+
+TEST_CASE("variable/function namespace") {
+    tecalc::calculator calc;
+    calc.bind_var("v", 1).bind_fn("f", [](int n){ return n; });
+    REQUIRE(calc.eval("f(v+1)") == 2);
+    REQUIRE(calc.eval("(f((v)))") == 1);
+    // rebind variable/function
+    calc.bind_var("N1", 2).bind_fn("N2", [](int n){ return n * 2; });
+    REQUIRE(calc.eval("N2(N1)") == 4);
+    calc.bind_var("N2", 2).bind_fn("N1", [](int n){ return n + 1; });
+    REQUIRE(calc.eval("N1(N2)") == 3);
+    // synatx error
+    std::error_code ec;
+    REQUIRE(calc.eval("v()", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
+    REQUIRE(calc.eval("(v)()", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
+    REQUIRE(calc.eval("f", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
+    REQUIRE(calc.eval("f+1", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
+    REQUIRE(calc.eval("(f)(1)", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
 }
 
 TEST_CASE("exception handling") {
@@ -182,13 +221,27 @@ TEST_CASE("exception handling") {
     REQUIRE_THAT(tecalc_category.name(), Equals("tecalc"));
     REQUIRE_THAT(tecalc_category.message(syntax_error), Equals("Syntax error"));
     REQUIRE_THAT(tecalc_category.message(invalid_literal), Equals("Invalid literal"));
-    REQUIRE_THAT(tecalc_category.message(undefined_var), Equals("Undefined variable"));
+    REQUIRE_THAT(tecalc_category.message(unknown_identifier), Equals("Unknown identifier"));
+    REQUIRE_THAT(tecalc_category.message(arg_num_mismatch), Equals("Argument number mismatch"));
     REQUIRE_THAT(tecalc_category.message(divide_by_zero), Equals("Divide by zero"));
     // throw tecalc_error
     static_assert(std::is_base_of<std::runtime_error, tecalc::tecalc_error>::value);
     tecalc::calculator calc;
+    calc.bind_fn("f", [](int x){ return x; });
     REQUIRE_THROWS_MATCHES(calc.eval("42+"), tecalc::tecalc_error, IsErrc(tecalc::errc::syntax_error));
     REQUIRE_THROWS_MATCHES(calc.eval("0b2"), tecalc::tecalc_error, IsErrc(tecalc::errc::invalid_literal));
-    REQUIRE_THROWS_MATCHES(calc.eval("und"), tecalc::tecalc_error, IsErrc(tecalc::errc::undefined_var));
+    REQUIRE_THROWS_MATCHES(calc.eval("und"), tecalc::tecalc_error, IsErrc(tecalc::errc::unknown_identifier));
+    REQUIRE_THROWS_MATCHES(calc.eval("f()"), tecalc::tecalc_error, IsErrc(tecalc::errc::arg_num_mismatch));
     REQUIRE_THROWS_MATCHES(calc.eval("0/0"), tecalc::tecalc_error, IsErrc(tecalc::errc::divide_by_zero));
+}
+
+TEST_CASE("README example") {
+    tecalc::calculator calc;
+    calc.bind_var("A", 2).bind_var("B", 4);
+    int res1 = calc.eval("(1 + A) * B - 2");
+    CHECK(res1 == 10);
+    calc.bind_fn("abs", [](int x){ return x < 0 ? -x : x; })
+        .bind_fn("min", [](int a, int b){ return a < b ? a : b; });
+    int res2 = calc.eval("abs(min(-A, -B))");
+    CHECK(res2 == 4);
 }

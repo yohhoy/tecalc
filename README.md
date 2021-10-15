@@ -8,10 +8,14 @@ This is a tiny numerical expression evaluator, intended for embeding in C++ prog
 #include "tecalc.hpp"
 
 tecalc::calculator calc;
-calc.set("A", 2);
-calc.set("B", 4);
-int answer = calc.eval("(1 + A) * B - 2");
-// answer == 10
+calc.bind_var("A", 2).bind_var("B", 4);
+int res1 = calc.eval("(1 + A) * B - 2");
+// res1 == 10
+
+calc.bind_fn("abs", [](int x){ return x < 0 ? -x : x; })
+    .bind_fn("min", [](int a, int b){ return a < b ? a : b; });
+int res2 = calc.eval("abs(min(-A, -B))");
+// res2 = 4
 ```
 
 ## Requirement
@@ -22,15 +26,17 @@ int answer = calc.eval("(1 + A) * B - 2");
 expression   := addsub-expr
 addsub-expr  := muldiv-expr {'+'|'-' muldiv-expr}*
 muldiv-expr  := unary-expr {'*'|'/'|'%' unary-expr}*
-unary-expr   := {'+'|'-'}* primary-expr
-primary-expr := {'(' expression ')'} | integer | variable
+unary-expr   := {'+'|'-'}* postfix-expr
+postfix-expr := primary-expr {'(' arguments? ')'}?
+arguments    := addsub-expr {',' addsub-expr}*
+primary-expr := {'(' addsub-expr ')'} | integer | identifier
 
-integer  := {digit}+  // decimal
-          | {"0x"|"0X"} {digit | 'a'|...|'f' | 'A'|...|'F'}+  // hexadecimal
-          | {"0b"|"0B"} {'0'|'1'}+  // binary
-variable := alphabet {alphabet | digit}*
-digit    := '0'|...|'9'
-alphabet := 'a'|...|'z' | 'A'|...|'Z'
+integer    := {digit}+  // decimal
+            | {"0x"|"0X"} {digit | 'a'|...|'f' | 'A'|...|'F'}+  // hexadecimal
+            | {"0b"|"0B"} {'0'|'1'}+  // binary
+identifier := alphabet {alphabet | digit}*  // variable or function
+digit      := '0'|...|'9'
+alphabet   := 'a'|...|'z' | 'A'|...|'Z'
 ```
 
 ## License
