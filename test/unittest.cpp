@@ -81,7 +81,7 @@ TEST_CASE("integer literals") {
 TEST_CASE("unary operator") {
     tecalc::calculator calc;
     REQUIRE(calc.eval(" + 0 ") == 0);
-    REQUIRE(calc.eval(" - 0 ") == 0);
+    REQUIRE(calc.eval(" - 0 ") == 0);  // no 'signed zero'
     REQUIRE(calc.eval(" + 100 ") == 100);
     REQUIRE(calc.eval(" - 100 ") == -100);
     // sequence
@@ -120,7 +120,6 @@ TEST_CASE("mul/div/mod operator") {
     REQUIRE(calc.eval(" 8 * 6 / 4 % 10 ") == 2);
     // divide by zero
     std::error_code ec;
-    REQUIRE(calc.eval(" 1 * 0 ") == 0);
     REQUIRE(calc.eval(" 1 / 0 ", ec) == std::nullopt); CHECK(ec.value() == divide_by_zero);
     REQUIRE(calc.eval(" 1 % 0 ", ec) == std::nullopt); CHECK(ec.value() == divide_by_zero);
 }
@@ -139,6 +138,7 @@ TEST_CASE("parenthesis") {
     REQUIRE(calc.eval("(0))", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
     // empty parenthesis
     REQUIRE(calc.eval("()", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
+    REQUIRE(calc.eval("(())", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
 }
 
 TEST_CASE("complex expression") {
@@ -153,6 +153,8 @@ TEST_CASE("complex expression") {
     REQUIRE(calc.eval(" ", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
     // redundant subsequent chars
     REQUIRE(calc.eval("1 2", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
+    REQUIRE(calc.eval("(1)2", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
+    REQUIRE(calc.eval("1 x", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
 }
 
 TEST_CASE("variables") {
