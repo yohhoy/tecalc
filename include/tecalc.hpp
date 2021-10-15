@@ -116,7 +116,7 @@ template <class Value>
 class basic_calculator {
 public:
     using value_type = Value;
-    using vartbl_type = std::map<std::string, value_type>;
+    using vartbl_type = std::map<std::string, value_type, std::less<>>;
 
     // evaluate expression string, return optional<Value> or error_code
     std::optional<value_type> eval(std::string_view expr, std::error_code& ec)
@@ -148,7 +148,7 @@ public:
     }
 
     // set value to named variable
-    std::optional<value_type> set(std::string name, value_type val)
+    std::optional<value_type> set(std::string_view name, value_type val)
     {
         auto itr = vartbl_.find(name);
         if (itr != vartbl_.end()) {
@@ -243,19 +243,13 @@ private:
     }
 
     // variable := {a-z|A-Z} {a-z|A-Z|0-9}*
-    std::optional<value_type> eval_var()
+    const char* parse_var()
     {
         if (!isalpha(*ptr_)) return {};
-        std::string name;
-        do {
-            name.push_back(*ptr_++);
-        } while (ptr_ != last_ && isalnum(*ptr_));
-        auto itr = vartbl_.find(name);
-        if (itr == vartbl_.end()) {
-            last_errc_ = errc::undefined_var;
-            return {};
-        }
-        return itr->second;
+        const char* begin = ptr_;
+        for (; ptr_ != last_ && isalnum(*ptr_); ptr_++)
+            ;
+        return begin;   // [begin, ptr_)
     }
 
     // primary := '(' addsub ')'
@@ -272,7 +266,15 @@ private:
         } else if (isdigit(*ptr_)) {
             return parse_int();
         } else {
-            return eval_var();
+            auto name = parse_var();
+            if (!name) return {};
+            std::string_view varname{name, static_cast<size_t>(ptr_ - name)};
+            auto itr = vartbl_.find(varname);
+            if (itr == vartbl_.end()) {
+                last_errc_ = errc::undefined_var;
+                return {};
+            }
+            return itr->second;
         }
     }
 
