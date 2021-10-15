@@ -29,6 +29,40 @@ parses and evaluates input expressions simultaneously.
 ## Requirement
 - C++17 or later
 
+## API
+```c++
+namespace tecalc {
+// error codes
+enum class errc {...};
+
+// exception throw by eval()
+class tecalc_error : public std::runtime_error {
+    const std::error_code& code();
+    // (and inherited from std::runtime_error)
+};
+
+template <class Value, int MaxArgNum = 2>
+class basic_calculator {
+    using value_type = Value;
+    using func_type = std::variant</*see below*/>;
+    // std::variant of function types that different number of parameters
+    // Value(*)(), Value(*)(Value), Value(*)(Value,Value), ...
+
+    // evaluate expression string, return optional<Value> or error_code
+    std::optional<value_type> eval(std::string_view expr, std::error_code& ec);
+    // evaluate expression string, return Value or throw tecalc_error
+    value_type eval(std::string_view expr);
+    
+    // bind value to variable name
+    basic_calculator& bind_var(std::string name, value_type val);
+    // bind function pointer to function name
+    basic_calculator& bind_fn(std::string name, func_type fn);
+};
+
+using calculator = basic_calculator<int>;
+}
+```
+
 ## Grammer
 ```
 expression   := addsub-expr
