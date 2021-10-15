@@ -87,6 +87,10 @@ TEST_CASE("unary operator") {
     // sequence
     REQUIRE(calc.eval(" + - - - + 42 ") == -42);
     REQUIRE(calc.eval("+-++--+-++42") == 42);
+    // stress test
+    constexpr size_t kOpNum = 100000;
+    REQUIRE(calc.eval(std::string(kOpNum, '+') + "42") == 42);
+    REQUIRE(calc.eval(std::string(kOpNum, '-') + "42") == 42);
 }
 
 TEST_CASE("add/sub operator") {
@@ -139,6 +143,10 @@ TEST_CASE("parenthesis") {
     // empty parenthesis
     REQUIRE(calc.eval("()", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
     REQUIRE(calc.eval("(())", ec) == std::nullopt); CHECK(ec.value() == syntax_error);
+    // stress test
+    constexpr size_t kDepth = 100000;
+    std::string expr = std::string(kDepth, '(') + "42" + std::string(kDepth, ')');
+    REQUIRE(calc.eval(expr) == 42);
 }
 
 TEST_CASE("complex expression") {
@@ -160,7 +168,7 @@ TEST_CASE("complex expression") {
 TEST_CASE("variables") {
     tecalc::calculator calc;
     calc.bind_var("x", 1).bind_var("y", 2);
-    calc.bind_var("x", 3);
+    calc.bind_var("x", 3);  // rebind "x"
     // use variables
     REQUIRE(calc.eval(" x ") == 3);
     REQUIRE(calc.eval("(x)") == 3);

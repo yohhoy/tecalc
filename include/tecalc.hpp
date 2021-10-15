@@ -338,9 +338,16 @@ private:
     {
         if (!eat_ws()) return {};
         if (consume_ch('(')) {
+            // Here we process consecutive parentheses
+            // to keep C++ function call stack shallow.
+            int depth = 1;
+            while (eat_ws() && consume_ch('(')) {
+                ++depth;
+            }
             auto res = eval_addsub();
-            if (!eat_ws()) return {};
-            if (!consume_ch(')')) return {};
+            while (0 < depth--) {
+                if (!eat_ws() || !consume_ch(')')) return {};
+            }
             return res;
         } else if (isdigit(*ptr_)) {
             return parse_int();

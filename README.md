@@ -18,10 +18,13 @@ int res2 = calc.eval("abs(min(-A, -B))");
 // res2 = 4
 ```
 
-This `tecalc` evaluator supports;
+The `tecalc` evaluator supports;
 - basic operators such as `+`, `-`, `*`, `/`, `%`(modulo) and parentheses,
 - hexadecimal/decimal/binary number literals,
 - bind value as variable and user-defined function call.
+
+The `eval` uses single-pass algorithm, builds no AST (abstract syntax tree),
+parses and evaluates input expressions simultaneously.
 
 ## Requirement
 - C++17 or later
