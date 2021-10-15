@@ -2,7 +2,7 @@
 [![CMake](https://github.com/yohhoy/tecalc/actions/workflows/cmake.yml/badge.svg)](https://github.com/yohhoy/tecalc/actions/workflows/cmake.yml)
 [![MIT License](http://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-This is a tiny numerical expression evaluator, intended for embeding in C++ program.
+This is a tiny numerical expression evaluator, intended for embedding in C++ program.
 
 ```cpp
 #include "tecalc.hpp"
@@ -17,6 +17,11 @@ calc.bind_fn("abs", [](int x){ return x < 0 ? -x : x; })
 int res2 = calc.eval("abs(min(-A, -B))");
 // res2 = 4
 ```
+
+This `tecalc` evaluator supports;
+- basic operators such as `+`, `-`, `*`, `/`, `%`(modulo) and parentheses,
+- hexadecimal/decimal/binary number literals,
+- bind value as variable and user-defined function call.
 
 ## Requirement
 - C++17 or later
