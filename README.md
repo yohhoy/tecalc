@@ -19,9 +19,9 @@ int res2 = calc.eval("abs(min(-A, -B))");
 ```
 
 The `tecalc` evaluator supports;
-- basic operators such as `+`, `-`, `*`, `/`, `%`(modulo) and parentheses,
-- hexadecimal/decimal/binary number literals,
-- bind value as variable and user-defined function call.
+- basic arithmetic operators such as `+`, `-`, `*`, `/`, `%`(modulo) and parentheses,
+- decimal/hexadecimal(`0x`)/binary(`0b`) number literals,
+- binding a value to variable name, and user-defined function call.
 
 The `eval` uses single-pass algorithm, builds no AST (abstract syntax tree),
 parses and evaluates input expressions simultaneously.
